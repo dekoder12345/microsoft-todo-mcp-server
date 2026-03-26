@@ -1,63 +1,60 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
-## Common Development Commands
-
-### Build and Development
+## Commands
 
 ```bash
-pnpm install         # Install dependencies
-pnpm run build       # Build with tsup to build/ directory
-pnpm run dev         # Build and run CLI in one command
+npm install              # Install dependencies
+npm run build            # Build with tsup to dist/
+npm run auth             # Start OAuth server (port 3000) — opens browser for Microsoft login
+npm run create-config    # Generate mcp.json from tokens.json
+npm run cli              # Run MCP server via CLI wrapper
+npm start                # Run MCP server directly
 ```
 
-### Authentication and Setup
+pnpm is not installed on this machine — use npm instead.
 
-```bash
-pnpm run auth        # Start OAuth authentication server (port 3000)
-pnpm run create-config # Generate mcp.json from tokens.json
+## Architecture
+
+MCP server for Microsoft To Do via Microsoft Graph API v1.0.
+
+```
+src/
+├── todo-index.ts         # Core MCP server — 15 tools for lists, tasks, checklist items
+├── cli.ts                # CLI entry point — loads tokens from env or tokens.json
+├── auth-server.ts        # Express OAuth 2.0 server with MSAL (port 3000)
+├── token-manager.ts      # Token refresh logic (auto-refresh 5min before expiry)
+├── create-mcp-config.ts  # Generates mcp.json from tokens.json
+└── setup.ts              # Interactive setup wizard
 ```
 
-### Running the Server
+Graph API hierarchy: Lists → Tasks → Checklist Items
 
-```bash
-pnpm run cli         # Run MCP server via CLI wrapper
-pnpm start           # Run MCP server directly
-```
+## Token Flow
 
-## Architecture Overview
+1. `npm run auth` → browser login → tokens saved to `tokens.json`
+2. `npm run create-config` → reads `tokens.json` → writes `mcp.json`
+3. Copy token env vars from `mcp.json` into `.mcp.json` for Claude Code
+4. Access tokens expire in ~1h; refresh token handles renewal automatically
 
-This is a Model Context Protocol (MCP) server that enables AI assistants to interact with Microsoft To Do via the Microsoft Graph API. The codebase follows a modular architecture with four main components:
+## Sensitive Files (never commit)
 
-1. **MCP Server** (`src/todo-index.ts`): Core server implementing the MCP protocol with 13 tools for Microsoft To Do operations
-2. **CLI Wrapper** (`src/cli.ts`): Executable entry point that handles token loading from environment or file
-3. **Auth Server** (`src/auth-server.js`): Express server implementing OAuth 2.0 flow with MSAL
-4. **Config Generator** (`src/create-mcp-config.ts`): Utility to create MCP configuration files
+- `tokens.json` — access + refresh tokens
+- `mcp.json` / `.mcp.json` — MCP config with tokens in env vars
+- `.env` — CLIENT_ID, CLIENT_SECRET, TENANT_ID, REDIRECT_URI
 
-### Key Architectural Patterns
+All listed in `.gitignore`.
 
-- **Token Management**: Tokens are stored in `tokens.json` with automatic refresh 5 minutes before expiration
-- **Multi-tenant Support**: Configurable for different Microsoft account types via TENANT_ID
-- **Error Handling**: Special handling for personal Microsoft accounts (MailboxNotEnabledForRESTAPI)
-- **Type Safety**: Strict TypeScript with Zod schemas for parameter validation
+## Azure App Registration
 
-### Microsoft Graph API Integration
+- App ID (CLIENT_ID): `a40c703e-6bcf-4497-9fe7-447740295c65`
+- TENANT_ID: `common` (personal + org accounts)
+- Redirect URI: `http://localhost:3000/callback`
+- Required permissions: Tasks.Read, Tasks.ReadWrite, User.Read
 
-The server communicates with Microsoft Graph API v1.0:
+## Key Patterns
 
-- Base URL: `https://graph.microsoft.com/v1.0`
-- Three-level hierarchy: Lists → Tasks → Checklist Items
-- Supports OData query parameters for filtering and sorting
-
-### Environment Configuration
-
-- `MSTODO_TOKEN_FILE`: Custom path for tokens.json (defaults to ./tokens.json)
-- `.env` file required for authentication with CLIENT_ID, CLIENT_SECRET, TENANT_ID, REDIRECT_URI
-
-## Important Notes
-
-- Always run `pnpm run build` after modifying TypeScript files (uses tsup for bundling)
-- The auth server runs on port 3000 by default
-- Tokens are automatically refreshed using the refresh token when needed
-- Personal Microsoft accounts have limited API access compared to work/school accounts
+- TypeScript strict mode with Zod schemas for tool parameter validation
+- ESM modules (`"type": "module"`)
+- tsup bundles to `dist/`
+- Personal Microsoft accounts get `MailboxNotEnabledForRESTAPI` — handled gracefully
+- Token refresh happens automatically via refresh token in token-manager.ts
