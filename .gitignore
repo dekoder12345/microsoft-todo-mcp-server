@@ -22,6 +22,10 @@ dist/
 # Tokens file (contains sensitive authentication data)
 tokens.json
 
+# MCP config files (contain access tokens)
+mcp.json
+.mcp.json
+
 # Editor directories and files
 .idea/
 .vscode/
